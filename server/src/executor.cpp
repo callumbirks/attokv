@@ -1,11 +1,12 @@
-#include "attokv_server/executor.h"
-#include "attokv_server/command.h"
-#include "attokv_server/store.h"
 #include <format>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <sstream>
+
+#include "attokv_server/executor.h"
+#include "attokv_server/command.h"
+#include "attokv_server/store.h"
 
 using namespace attokv;
 

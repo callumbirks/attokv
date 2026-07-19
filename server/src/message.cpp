@@ -1,9 +1,9 @@
-#include "attokv_server/message.h"
 #include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <expected>
-#include <iostream>
+
+#include "attokv_server/message.h"
 
 using namespace attokv;
 
