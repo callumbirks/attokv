@@ -1,20 +1,23 @@
-#include <cassert>
-#include <iostream>
-#include <sstream>
+#include "attokv_server/executor.h"
+#include "attokv_server/command.h"
+#include "attokv_server/store.h"
+#include <format>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
-#include <format>
-#include "kvcli/store.h"
-#include "kvcli/command.h"
+#include <sstream>
 
-using namespace kvcli;
+using namespace attokv;
 
 std::unordered_map<std::string_view, CommandSpec>& commands() {
     static std::unordered_map<std::string_view, CommandSpec> map {};
 
     return map;
+}
+
+KVStore& store() {
+    static KVStore store{};
+    return store;
 }
 
 std::optional<CommandSpec> getCommandSpec(const std::string& oper_str) {
@@ -59,42 +62,21 @@ ParseResult parseCommand(const std::string& line) {
     return { .command = command, .args = args };
 }
 
-void register_builtins() {
+CommandResult executor::run_command(const std::string& input) {
+    ParseResult command { parseCommand(input) };
+
+    if (!command.command) {
+        return { .error = true, .output = command.error };
+    }
+
+    CommandContext context { &store(), static_cast<int>(command.args.size()), command.args.data() };
+
+    return command.command->run(context);
+}
+
+void executor::register_builtins() {
     auto& commands = ::commands();
     for (const auto& spec : command::builtin()) {
         commands.emplace(spec.name, spec);
     }
-}
-
-int main() {
-    std::string line{};
-    KVStore store{};
-
-    register_builtins();
-
-    while (true) {
-        std::cout << "kvcli> ";
-
-        if (!std::getline(std::cin, line)) {
-            break;
-        }
-
-        ParseResult command = parseCommand(line);
-
-        if (!command.command) {
-            std::cout << command.error << '\n';
-            continue;
-        }
-
-        CommandContext context { &store, static_cast<int>(command.args.size()), command.args.data() };
-        CommandResult result = command.command->run(context);
-
-        if (!result.output.empty()) {
-            std::cout << result.output << '\n';
-        }
-
-        if (result.stop) break;
-    }
-
-    return 0;
 }

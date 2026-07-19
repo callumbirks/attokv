@@ -1,8 +1,8 @@
 #include <cassert>
 #include <string_view>
-#include "kvcli/command.h"
+#include "attokv_server/command.h"
 
-using namespace kvcli;
+using namespace attokv;
 
 CommandResult command::_builtin_exit(CommandContext _) {
     return { .stop = true };
@@ -13,7 +13,7 @@ CommandResult command::_builtin_ping(CommandContext _) {
 }
 
 CommandResult command::_builtin_get(CommandContext context) {
-    std::string_view val = context.store->get(context.args[0]);
+    std::string_view val { context.store->get(context.args[0]) };
     if (val.empty()) return { .output = "NULL" };
     else return { .output = std::string{val} };
 }

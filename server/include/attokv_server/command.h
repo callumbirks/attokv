@@ -1,15 +1,12 @@
-#ifndef KVCLI_COMMAND_H
-#define KVCLI_COMMAND_H
+#ifndef ATTOKV_SERVER_COMMAND_H
+#define ATTOKV_SERVER_COMMAND_H
 
 #include <array>
 #include <functional>
-#include <optional>
 #include <string>
-#include <string_view>
-#include <vector>
 #include "store.h"
 
-namespace kvcli {
+namespace attokv {
 
 struct CommandResult {
     bool stop { false };

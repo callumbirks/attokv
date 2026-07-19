@@ -1,10 +1,10 @@
-#ifndef KVCLI_STORE_H
-#define KVCLI_STORE_H
+#ifndef ATTOKV_SERVER_STORE_H
+#define ATTOKV_SERVER_STORE_H
 
 #include <string>
 #include <unordered_map>
 
-namespace kvcli {
+namespace attokv {
 
 class KVStore {
 public:
@@ -16,7 +16,7 @@ public:
 
     void flush();
 private:
-    std::unordered_map<std::string, std::string> _map{};
+    std::unordered_map<std::string, std::string> m_map{};
 };
 
 }

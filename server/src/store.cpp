@@ -1,19 +1,19 @@
-#include "kvcli/store.h"
+#include "attokv_server/store.h"
 
-using namespace kvcli;
+using namespace attokv;
 
 KVStore::KVStore() {}
 
 std::string_view KVStore::get(const std::string& key) {
-    auto it = _map.find(key);
-    if (it == _map.end()) return {};
+    auto it = m_map.find(key);
+    if (it == m_map.end()) return {};
     else return it->second;
 }
 
 void KVStore::set(const std::string& key, const std::string& value) {
-    _map.insert_or_assign(key, value);
+    m_map.insert_or_assign(key, value);
 }
 
 void KVStore::flush() {
-    _map.clear();
+    m_map.clear();
 }
