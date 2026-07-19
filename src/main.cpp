@@ -46,11 +46,14 @@ ParseResult parseCommand(const std::string& line) {
     std::string arg{};
 
     for (int i = 0; input >> arg; i++) {
-        // Early catch to avoid processing loads of args
         if (i == command->required_args) {
             return { .error = std::format("Invalid number of args for command '{}'", oper_str) };
         }
         args.push_back(arg);
+    }
+
+    if (command->required_args > -1 && static_cast<int>(args.size()) != command->required_args) {
+        return { .error = std::format("Invalid number of args for command '{}'", oper_str) };
     }
 
     return { .command = command, .args = args };
