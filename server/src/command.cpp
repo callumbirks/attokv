@@ -1,7 +1,6 @@
+#include "attokv_server/command.h"
 #include <cassert>
 #include <string_view>
-
-#include "attokv_server/command.h"
 
 using namespace attokv;
 
@@ -14,9 +13,11 @@ CommandResult command::_builtin_ping(CommandContext _) {
 }
 
 CommandResult command::_builtin_get(CommandContext context) {
-    std::string_view val { context.store->get(context.args[0]) };
-    if (val.empty()) return { .output = "NULL" };
-    else return { .output = std::string{val} };
+    std::string_view val{ context.store->get(context.args[0]) };
+    if (val.empty())
+        return { .output = "NULL" };
+    else
+        return { .output = std::string{ val } };
 }
 
 CommandResult command::_builtin_set(CommandContext context) {
@@ -30,12 +31,12 @@ CommandResult command::_builtin_flush(CommandContext context) {
 }
 
 const std::array<CommandSpec, 5>& command::builtin() {
-    static const std::array<CommandSpec, 5> array {{
-        { "exit", 0, _builtin_exit },
-        { "ping", 0, _builtin_ping },
-        { "get", 1, _builtin_get },
-        { "set", 2, _builtin_set },
-        { "flush", 0, _builtin_flush }
-    }};
+    static const std::array<CommandSpec, 5> array{
+        { { "exit", 0, _builtin_exit },
+          { "ping", 0, _builtin_ping },
+          { "get", 1, _builtin_get },
+          { "set", 2, _builtin_set },
+          { "flush", 0, _builtin_flush } }
+    };
     return array;
 }

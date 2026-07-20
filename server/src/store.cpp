@@ -6,8 +6,10 @@ KVStore::KVStore() {}
 
 std::string_view KVStore::get(const std::string& key) {
     auto it = m_map.find(key);
-    if (it == m_map.end()) return {};
-    else return it->second;
+    if (it == m_map.end())
+        return {};
+    else
+        return it->second;
 }
 
 void KVStore::set(const std::string& key, const std::string& value) {

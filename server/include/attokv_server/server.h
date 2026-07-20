@@ -10,16 +10,18 @@ public:
 
     // Start TCP server on given IPv4 address.
     void start(const std::string& address, int port);
-    // Accept a client connection on the bound address and process received commands until the connection is closed.
+    // Accept a client connection on the bound address and process received
+    // commands until the connection is closed.
     void handle_client();
     // Close the current client connection.
     void close();
 
     ~Server();
+
 private:
     KVStore m_store;
     int m_listen_fd;
 };
-}
+} // namespace attokv
 
 #endif

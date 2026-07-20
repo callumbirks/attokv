@@ -15,10 +15,11 @@ public:
     void set(const std::string& key, const std::string& val);
 
     void flush();
+
 private:
     std::unordered_map<std::string, std::string> m_map{};
 };
 
-}
+} // namespace attokv
 
 #endif

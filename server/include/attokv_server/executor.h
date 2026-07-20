@@ -4,8 +4,8 @@
 #include "attokv_server/command.h"
 
 namespace attokv::executor {
-    void register_builtins();
-    CommandResult run_command(const std::string& input);
-}
+void register_builtins();
+CommandResult run_command(const std::string& input);
+} // namespace attokv::executor
 
 #endif
