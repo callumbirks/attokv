@@ -20,7 +20,7 @@ public:
 
 private:
     KVStore m_store;
-    int m_listen_fd;
+    int m_listen_fd{0};
 };
 } // namespace attokv
 

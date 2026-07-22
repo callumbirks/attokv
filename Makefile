@@ -6,5 +6,7 @@ build:
 	cmake --build build
 build_server:
 	cmake --build --target server
+build_client:
+	cmake --build --target client
 clean:
 	rm -rf build

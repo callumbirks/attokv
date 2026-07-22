@@ -2,7 +2,7 @@
 BasedOnStyle: LLVM
 IndentWidth: 4
 ContinuationIndentWidth: 6
-ColumnLimit: 80
+ColumnLimit: 100
 AccessModifierOffset: -4
 PointerAlignment: Left
 LineEnding: LF
@@ -12,8 +12,8 @@ AllowShortFunctionsOnASingleLine: Empty
 AllowShortEnumsOnASingleLine: false
 AllowShortCaseExpressionOnASingleLine: false
 BreakAfterAttributes: Always
-Cpp11BracedListStyle: false
-BraceWrapping:
-  SplitEmptyFunction: false
-  SplitEmptyNamespace: false
+BreakAfterOpenBracketBracedList: true
+BreakBeforeCloseBracketBracedList: true
+Cpp11BracedListStyle: FunctionCall
+BracedInitializerIndentWidth: 4
 ...

@@ -1,7 +1,8 @@
 #include "attokv_server/server.h"
+#include "attokv/message.h"
+#include "attokv/util.h"
 #include "attokv_server/command.h"
 #include "attokv_server/executor.h"
-#include "attokv_server/message.h"
 #include <arpa/inet.h>
 #include <array>
 #include <cassert>
@@ -15,34 +16,18 @@
 
 using namespace attokv;
 
-std::expected<sockaddr_in, std::string>
-make_sockaddr(const std::string& address, int port) {
-    if (port < 6000 || port > 65535) {
-        return std::unexpected{ "Invalid port number" };
-    }
-    sockaddr_in sock_addr{};
-    if (!inet_aton(address.data(), &sock_addr.sin_addr)) {
-        return std::unexpected{ "Failed to parse address" };
-    }
-    sock_addr.sin_family = AF_INET;
-    sock_addr.sin_port = htons(static_cast<uint16_t>(port));
-    return sock_addr;
-}
-
 void Server::start(const std::string& address, int port) {
     int sock = ::socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1) {
         err(EXIT_FAILURE, "socket");
     }
 
-    auto sock_addr = make_sockaddr(address, port);
+    auto sock_addr = util::make_sockaddr(address, port);
     if (!sock_addr.has_value()) {
-        err(EXIT_FAILURE, "Failed to construct address: %s",
-            sock_addr.error().data());
+        err(EXIT_FAILURE, "Failed to construct address: %s", sock_addr.error().data());
     }
 
-    if (::bind(sock, (sockaddr*)&sock_addr.value(),
-               sizeof(sock_addr.value())) == -1) {
+    if (::bind(sock, (sockaddr*)&sock_addr.value(), sizeof(sock_addr.value())) == -1) {
         err(EXIT_FAILURE, "bind");
     }
 
@@ -51,8 +36,7 @@ void Server::start(const std::string& address, int port) {
     }
 
     m_listen_fd = sock;
-    std::cout << "Listening on " << inet_ntoa(sock_addr.value().sin_addr) << ":"
-              << port << '\n';
+    std::cout << "Listening on " << inet_ntoa(sock_addr.value().sin_addr) << ":" << port << '\n';
 }
 
 void Server::handle_client() {
@@ -63,8 +47,7 @@ void Server::handle_client() {
     sockaddr_in client_addr{};
     socklen_t client_addr_size = sizeof(client_addr);
 
-    int client_fd =
-          ::accept(m_listen_fd, (sockaddr*)&client_addr, &client_addr_size);
+    int client_fd = ::accept(m_listen_fd, (sockaddr*)&client_addr, &client_addr_size);
     if (client_fd == -1) {
         err(EXIT_FAILURE, "accept");
     }
@@ -102,7 +85,7 @@ void Server::handle_client() {
             }
         } while (reader.expected_bytes_remaining() > 0);
 
-        Message message{ reader.finish() };
+        Message message{reader.finish()};
 
         CommandResult result = executor::run_command(message.message);
 

@@ -9,8 +9,8 @@
 namespace attokv {
 
 struct CommandResult {
-    bool stop{ false };
-    bool error{ false };
+    bool stop{false};
+    bool error{false};
     std::string output{};
 };
 

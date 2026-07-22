@@ -45,7 +45,7 @@ void run_server() {
 int main(int argc, const char** argv) {
     executor::register_builtins();
 
-    bool repl{ false };
+    bool repl{false};
     if (argc > 1 && strcmp(argv[1], "--repl") == 0) {
         repl = true;
         std::cout << "Repl mode enabled\n";

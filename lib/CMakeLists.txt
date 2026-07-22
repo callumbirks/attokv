@@ -1,5 +1,6 @@
 add_library(attokv_lib STATIC
-    src/main.cpp
+    src/message.cpp
+    src/util.cpp
 )
 
 target_include_directories(attokv_lib
