@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstring>
 #include <expected>
+#include <netinet/in.h>
 
 using namespace attokv;
 
@@ -19,15 +20,17 @@ std::expected<void, std::string> MessageReader::process_bytes(size_t n, const ch
     if (m_expected_size == 0) {
         if (n < 4)
             return std::unexpected{"Invalid message header"};
-        uint32_t size{};
-        std::memcpy(&size, bytes, 4);
+        uint32_t size_raw{};
+        std::memcpy(&size_raw, bytes, 4);
+
+        uint32_t size = ntohl(size_raw);
 
         if (size == 0 || size > message::constants::MAX_MESSAGE_SIZE)
             return std::unexpected{"Invalid message size"};
 
         m_expected_size = size - 4;
         num_bytes = n - 4;
-        m_buffer.reserve(m_expected_size);
+        m_buffer.resize(m_expected_size);
         // Skip size header
         read_bytes = bytes + 4;
     }
@@ -41,7 +44,7 @@ std::expected<void, std::string> MessageReader::process_bytes(size_t n, const ch
 Message MessageReader::finish() {
     assert(m_expected_size != 0 && m_bytes_read == m_expected_size);
 
-    return {m_buffer.data()};
+    return {std::string{m_buffer.data(), m_buffer.size()}};
 }
 
 size_t MessageWriter::expected_bytes_remaining() {
@@ -53,10 +56,10 @@ size_t MessageWriter::expected_bytes_remaining() {
 
 std::expected<void, std::string> MessageWriter::write() {
     if (m_bytes_written == 0) {
-        uint32_t size = static_cast<uint32_t>(m_expected_size);
+        uint32_t size = htonl(static_cast<uint32_t>(m_expected_size));
         std::array<char, 4> size_bytes{};
         std::memcpy(size_bytes.data(), &size, 4);
-        size_t n_b = m_write_fn(4, size_bytes.data());
+        ssize_t n_b = m_write_fn(4, size_bytes.data());
         if (n_b != 4) {
             return std::unexpected{"Unable to write header"};
         }
@@ -69,7 +72,7 @@ std::expected<void, std::string> MessageWriter::write() {
 
     const char* source{m_message.message.data() + m_bytes_written - 4};
 
-    size_t n_b = m_write_fn(bytes_remaining, source);
+    ssize_t n_b = m_write_fn(bytes_remaining, source);
 
     if (n_b <= 0) {
         return std::unexpected{"Unable to write more bytes"};
