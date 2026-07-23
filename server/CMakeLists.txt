@@ -2,7 +2,6 @@ add_executable(attokv_server
     src/main.cpp
     src/command.cpp
     src/executor.cpp
-    src/message.cpp
     src/server.cpp
     src/store.cpp
 )

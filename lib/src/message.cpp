@@ -51,4 +51,31 @@ size_t MessageWriter::expected_bytes_remaining() {
         return m_expected_size - m_bytes_written;
 }
 
-void MessageWriter::write() {}
+std::expected<void, std::string> MessageWriter::write() {
+    if (m_bytes_written == 0) {
+        uint32_t size = static_cast<uint32_t>(m_expected_size);
+        std::array<char, 4> size_bytes{};
+        std::memcpy(size_bytes.data(), &size, 4);
+        size_t n_b = m_write_fn(4, size_bytes.data());
+        if (n_b != 4) {
+            return std::unexpected{"Unable to write header"};
+        }
+        m_bytes_written = 4;
+    }
+
+    size_t bytes_remaining = expected_bytes_remaining();
+    if (bytes_remaining == 0)
+        return {};
+
+    const char* source{m_message.message.data() + m_bytes_written - 4};
+
+    size_t n_b = m_write_fn(bytes_remaining, source);
+
+    if (n_b <= 0) {
+        return std::unexpected{"Unable to write more bytes"};
+    }
+
+    m_bytes_written += n_b;
+
+    return {};
+}

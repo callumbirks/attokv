@@ -5,8 +5,8 @@ configure:
 build:
 	cmake --build build
 build_server:
-	cmake --build --target server
+	cmake --build build --target attokv_server
 build_client:
-	cmake --build --target client
+	cmake --build build --target attokv_client
 clean:
 	rm -rf build

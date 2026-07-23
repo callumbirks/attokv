@@ -65,6 +65,7 @@ void Server::handle_client() {
                 return;
             }
             if (bytes_recv == -1) {
+                ::close(client_fd);
                 err(EXIT_FAILURE, "recv");
             }
 
@@ -74,15 +75,6 @@ void Server::handle_client() {
                 std::cerr << "Error reading message: " << ok.error() << '\n';
                 return;
             }
-
-            if (reader.expected_bytes_remaining() > 0 && bytes_recv < 1024) {
-                // We are expecting there to be more data on the socket, but
-                // there isn't. This avoids the next call to `recv` waiting
-                // forever.
-                ::close(client_fd);
-                std::cerr << "Client did not send enough bytes\n";
-                return;
-            }
         } while (reader.expected_bytes_remaining() > 0);
 
         Message message{reader.finish()};
@@ -90,8 +82,18 @@ void Server::handle_client() {
         CommandResult result = executor::run_command(message.message);
 
         if (!result.output.empty()) {
-            // TODO: Write output to socket
-            std::cout << result.output << '\n';
+            Message message{result.output};
+            MessageWriter writer{message, [&](size_t n, const char* b) {
+                                     return ::send(client_fd, b, n, 0);
+                                 }};
+            do {
+                auto result = writer.write();
+                if (!result.has_value()) {
+                    ::close(client_fd);
+                    std::cerr << "Error writing message: " << result.error() << '\n';
+                    return;
+                }
+            } while (writer.expected_bytes_remaining() > 0);
         }
 
         if (result.stop || result.error)

@@ -35,16 +35,16 @@ private:
 
 class MessageWriter {
 public:
-    MessageWriter(Message message, std::function<ssize_t(size_t, char*)> write_fn)
-        : m_message{message}, m_write_fn{write_fn} {}
+    MessageWriter(Message message, std::function<ssize_t(size_t, const char*)> write_fn)
+        : m_message{message}, m_write_fn{write_fn}, m_expected_size{message.message.size() + 4} {}
 
     size_t expected_bytes_remaining();
 
-    void write();
+    std::expected<void, std::string> write();
 
 private:
     Message m_message;
-    std::function<ssize_t(size_t, char*)> m_write_fn;
+    std::function<ssize_t(size_t, const char*)> m_write_fn;
     size_t m_expected_size{0};
     size_t m_bytes_written{0};
 };

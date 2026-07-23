@@ -3,7 +3,6 @@
 
 #include <expected>
 #include <string>
-#include <string_view>
 
 namespace attokv {
 class Client {
@@ -12,7 +11,7 @@ public:
 
     std::expected<void, std::string> connect(const std::string& address, int port);
 
-    std::expected<std::string, std::string> command(std::string_view input);
+    std::expected<std::string, std::string> command(std::string input);
 
     ~Client();
 

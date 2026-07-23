@@ -36,7 +36,7 @@ void run_repl() {
 
 void run_server() {
     Server server{};
-    server.start("127.0.0.1", 6337);
+    server.start("127.0.0.1", 6338);
     while (true) {
         server.handle_client();
     }
