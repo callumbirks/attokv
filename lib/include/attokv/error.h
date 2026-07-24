@@ -1,7 +1,10 @@
 #ifndef ATTOKV_ERROR_H
 #define ATTOKV_ERROR_H
 
+#include <string>
 #include <system_error>
+
+namespace attokv {
 
 enum class IoErrorKind {
     system,
@@ -15,5 +18,7 @@ struct IoError {
     std::error_code cause;
     std::string context;
 };
+
+} // namespace attokv
 
 #endif

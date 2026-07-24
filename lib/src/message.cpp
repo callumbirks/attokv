@@ -1,84 +1,145 @@
 #include "attokv/message.h"
-#include <cassert>
+
+#include <array>
+#include <cerrno>
 #include <cstdint>
 #include <cstring>
 #include <expected>
 #include <netinet/in.h>
+#include <span>
+#include <sys/socket.h>
+#include <system_error>
+#include <utility>
 
 using namespace attokv;
 
-size_t MessageReader::expected_bytes_remaining() {
-    if (m_bytes_read >= m_expected_size)
-        return 0;
-    else
-        return m_expected_size - m_bytes_read;
+namespace {
+
+IoError system_error(std::string context) {
+    return {
+        .kind = IoErrorKind::system,
+        .cause = {errno, std::generic_category()},
+        .context = std::move(context),
+    };
 }
 
-std::expected<void, std::string> MessageReader::process_bytes(size_t n, const char* bytes) {
-    const char* read_bytes = bytes;
-    size_t num_bytes = n;
-    if (m_expected_size == 0) {
-        if (n < 4)
-            return std::unexpected{"Invalid message header"};
-        uint32_t size_raw{};
-        std::memcpy(&size_raw, bytes, 4);
-
-        uint32_t size = ntohl(size_raw);
-
-        if (size == 0 || size > message::constants::MAX_MESSAGE_SIZE)
-            return std::unexpected{"Invalid message size"};
-
-        m_expected_size = size - 4;
-        num_bytes = n - 4;
-        m_buffer.resize(m_expected_size);
-        // Skip size header
-        read_bytes = bytes + 4;
-    }
-    if (num_bytes > expected_bytes_remaining())
-        return std::unexpected{"Cannot accept more bytes"};
-    std::memcpy(m_buffer.data() + m_bytes_read, read_bytes, num_bytes);
-    m_bytes_read += num_bytes;
-    return {};
+IoError unexpected_eof(std::string context) {
+    return {
+        .kind = IoErrorKind::unexpected_eof,
+        .cause = {},
+        .context = std::move(context),
+    };
 }
 
-Message MessageReader::finish() {
-    assert(m_expected_size != 0 && m_bytes_read == m_expected_size);
+std::expected<bool, IoError> read_exact(const Socket& socket, std::span<char> destination,
+                                        const char* context) {
+    std::size_t bytes_read = 0;
 
-    return {std::string{m_buffer.data(), m_buffer.size()}};
-}
+    while (bytes_read < destination.size()) {
+        const ssize_t result = ::recv(socket.native_handle(), destination.data() + bytes_read,
+                                      destination.size() - bytes_read, 0);
 
-size_t MessageWriter::expected_bytes_remaining() {
-    if (m_bytes_written >= m_expected_size)
-        return 0;
-    else
-        return m_expected_size - m_bytes_written;
-}
-
-std::expected<void, std::string> MessageWriter::write() {
-    if (m_bytes_written == 0) {
-        uint32_t size = htonl(static_cast<uint32_t>(m_expected_size));
-        std::array<char, 4> size_bytes{};
-        std::memcpy(size_bytes.data(), &size, 4);
-        ssize_t n_b = m_write_fn(4, size_bytes.data());
-        if (n_b != 4) {
-            return std::unexpected{"Unable to write header"};
+        if (result > 0) {
+            bytes_read += static_cast<std::size_t>(result);
+            continue;
         }
-        m_bytes_written = 4;
+
+        if (result == 0) {
+            if (bytes_read == 0)
+                return false;
+            return std::unexpected{unexpected_eof(context)};
+        }
+
+        if (errno == EINTR)
+            continue;
+
+        return std::unexpected{system_error(context)};
     }
 
-    size_t bytes_remaining = expected_bytes_remaining();
-    if (bytes_remaining == 0)
-        return {};
+    return true;
+}
 
-    const char* source{m_message.message.data() + m_bytes_written - 4};
+std::expected<void, IoError> write_all(const Socket& socket, std::span<const char> source,
+                                       const char* context) {
+    std::size_t bytes_written = 0;
 
-    ssize_t n_b = m_write_fn(bytes_remaining, source);
+    while (bytes_written < source.size()) {
+        const ssize_t result = ::send(socket.native_handle(), source.data() + bytes_written,
+                                      source.size() - bytes_written, MSG_NOSIGNAL);
 
-    if (n_b <= 0) {
-        return std::unexpected{"Unable to write more bytes"};
+        if (result > 0) {
+            bytes_written += static_cast<std::size_t>(result);
+            continue;
+        }
+
+        if (result == 0) {
+            return std::unexpected{IoError{
+                .kind = IoErrorKind::system,
+                .cause = std::make_error_code(std::errc::broken_pipe),
+                .context = context,
+            }};
+        }
+
+        if (errno == EINTR)
+            continue;
+
+        return std::unexpected{system_error(context)};
     }
-
-    m_bytes_written += n_b;
 
     return {};
+}
+
+} // namespace
+
+std::expected<std::optional<Message>, IoError> attokv::read_message(const Socket& socket) {
+    std::array<char, sizeof(std::uint32_t)> header{};
+    auto header_result = read_exact(socket, header, "Failed to read message header");
+    if (!header_result)
+        return std::unexpected{std::move(header_result.error())};
+    if (!*header_result)
+        return std::optional<Message>{};
+
+    std::uint32_t network_size{};
+    std::memcpy(&network_size, header.data(), header.size());
+    const std::uint32_t payload_size = ntohl(network_size);
+
+    if (payload_size > message::constants::MAX_MESSAGE_SIZE) {
+        return std::unexpected{IoError{
+            .kind = IoErrorKind::message_too_large,
+            .cause = {},
+            .context = "Incoming message exceeds maximum size",
+        }};
+    }
+
+    Message message{std::string(payload_size, '\0')};
+    if (payload_size != 0) {
+        auto payload_result = read_exact(socket, message.message, "Failed to read message payload");
+        if (!payload_result)
+            return std::unexpected{std::move(payload_result.error())};
+        if (!*payload_result)
+            return std::unexpected{unexpected_eof(
+                  "Peer closed before sending the message payload")};
+    }
+
+    return std::optional<Message>{std::move(message)};
+}
+
+std::expected<void, IoError> attokv::write_message(const Socket& socket, const Message& message) {
+    if (message.message.size() > message::constants::MAX_MESSAGE_SIZE) {
+        return std::unexpected{IoError{
+            .kind = IoErrorKind::message_too_large,
+            .cause = {},
+            .context = "Outgoing message exceeds maximum size",
+        }};
+    }
+
+    const std::uint32_t network_size = htonl(static_cast<std::uint32_t>(message.message.size()));
+    std::array<char, sizeof(network_size)> header{};
+    std::memcpy(header.data(), &network_size, header.size());
+
+    auto header_result = write_all(socket, header, "Failed to write message header");
+    if (!header_result)
+        return header_result;
+
+    return write_all(socket, message.message, "Failed to write message payload");
 }

@@ -1,5 +1,6 @@
 add_library(attokv_lib STATIC
     src/message.cpp
+    src/socket.cpp
     src/util.cpp
 )
 

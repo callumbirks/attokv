@@ -1,12 +1,13 @@
 #ifndef ATTOKV_SERVER_H
 #define ATTOKV_SERVER_H
 
+#include "attokv/socket.h"
 #include "attokv_server/store.h"
 
 namespace attokv {
 class Server {
 public:
-    Server() : m_store{} {}
+    Server() = default;
 
     // Start TCP server on given IPv4 address.
     void start(const std::string& address, int port);
@@ -16,11 +17,9 @@ public:
     // Close the current client connection.
     void close();
 
-    ~Server();
-
 private:
     KVStore m_store;
-    int m_listen_fd{0};
+    Socket m_listen_socket;
 };
 } // namespace attokv
 

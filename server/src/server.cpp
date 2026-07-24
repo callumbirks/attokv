@@ -4,21 +4,28 @@
 #include "attokv_server/command.h"
 #include "attokv_server/executor.h"
 #include <arpa/inet.h>
-#include <array>
-#include <cassert>
 #include <cstdlib>
 #include <err.h>
-#include <expected>
 #include <iostream>
 #include <netinet/in.h>
 #include <sys/socket.h>
-#include <unistd.h>
 
 using namespace attokv;
 
+namespace {
+
+void log_io_error(const char* operation, const IoError& error) {
+    std::cerr << operation << ": " << error.context;
+    if (error.cause)
+        std::cerr << ": " << error.cause.message();
+    std::cerr << '\n';
+}
+
+} // namespace
+
 void Server::start(const std::string& address, int port) {
-    int sock = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == -1) {
+    Socket socket{::socket(AF_INET, SOCK_STREAM, 0)};
+    if (!socket.is_valid()) {
         err(EXIT_FAILURE, "socket");
     }
 
@@ -27,83 +34,57 @@ void Server::start(const std::string& address, int port) {
         err(EXIT_FAILURE, "Failed to construct address: %s", sock_addr.error().data());
     }
 
-    if (::bind(sock, (sockaddr*)&sock_addr.value(), sizeof(sock_addr.value())) == -1) {
+    if (::bind(socket.native_handle(), reinterpret_cast<sockaddr*>(&sock_addr.value()),
+               sizeof(sock_addr.value())) == -1) {
         err(EXIT_FAILURE, "bind");
     }
 
-    if (::listen(sock, 64) == -1) {
+    if (::listen(socket.native_handle(), 64) == -1) {
         err(EXIT_FAILURE, "listen");
     }
 
-    m_listen_fd = sock;
+    m_listen_socket = std::move(socket);
     std::cout << "Listening on " << inet_ntoa(sock_addr.value().sin_addr) << ":" << port << '\n';
 }
 
 void Server::handle_client() {
-    if (m_listen_fd <= 0) {
+    if (!m_listen_socket.is_valid()) {
         err(EXIT_FAILURE, "Not bound to socket");
     }
 
     sockaddr_in client_addr{};
     socklen_t client_addr_size = sizeof(client_addr);
 
-    int client_fd = ::accept(m_listen_fd, (sockaddr*)&client_addr, &client_addr_size);
-    if (client_fd == -1) {
+    Socket client_socket{::accept(m_listen_socket.native_handle(),
+                                  reinterpret_cast<sockaddr*>(&client_addr), &client_addr_size)};
+    if (!client_socket.is_valid()) {
         err(EXIT_FAILURE, "accept");
     }
 
-    std::array<char, 1024> buf{};
-
     while (true) {
-        MessageReader reader{};
+        auto message = read_message(client_socket);
+        if (!message) {
+            log_io_error("Error reading message", message.error());
+            return;
+        }
+        if (!*message)
+            return;
 
-        do {
-            ssize_t bytes_recv = ::recv(client_fd, buf.data(), buf.size(), 0);
-
-            if (bytes_recv == 0) {
-                ::close(client_fd);
-                return;
-            }
-            if (bytes_recv == -1) {
-                ::close(client_fd);
-                err(EXIT_FAILURE, "recv");
-            }
-
-            auto ok = reader.process_bytes(bytes_recv, buf.data());
-            if (!ok.has_value()) {
-                ::close(client_fd);
-                std::cerr << "Error reading message: " << ok.error() << '\n';
-                return;
-            }
-        } while (reader.expected_bytes_remaining() > 0);
-
-        Message message{reader.finish()};
-
-        CommandResult result = executor::run_command(message.message);
+        CommandResult result = executor::run_command((*message)->message);
 
         if (!result.output.empty()) {
-            Message message{result.output};
-            MessageWriter writer{message, [&](size_t n, const char* b) {
-                                     return ::send(client_fd, b, n, 0);
-                                 }};
-            do {
-                auto result = writer.write();
-                if (!result.has_value()) {
-                    ::close(client_fd);
-                    std::cerr << "Error writing message: " << result.error() << '\n';
-                    return;
-                }
-            } while (writer.expected_bytes_remaining() > 0);
+            auto write_result = write_message(client_socket, Message{result.output});
+            if (!write_result) {
+                log_io_error("Error writing message", write_result.error());
+                return;
+            }
         }
 
-        if (result.stop || result.error)
+        if (result.stop)
             break;
     }
-
-    ::close(client_fd);
 }
 
-Server::~Server() {
-    if (m_listen_fd > 0)
-        ::close(m_listen_fd);
+void Server::close() {
+    m_listen_socket.reset();
 }

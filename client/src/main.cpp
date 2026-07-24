@@ -23,15 +23,19 @@ int main() {
 
         auto result = client.command(line);
         if (!result.has_value()) {
-            std::cerr << "Failed to call command: " << result.error() << '\n';
+            const auto& error = result.error();
+            std::cerr << "Failed to call command: " << error.context;
+            if (error.cause)
+                std::cerr << ": " << error.cause.message();
+            std::cerr << '\n';
             return 1;
         }
 
-        if (result.value().empty()) {
+        if (!result.value()) {
             break;
         }
 
-        std::cout << result.value() << '\n';
+        std::cout << *result.value() << '\n';
     }
 
     return 0;
