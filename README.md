@@ -4,6 +4,30 @@ A small simple KV store, written in C++.
 
 Includes a server and a CLI client, which communicate over TCP using a simple binary protocol.
 
+## Building
+
+If you have `make` installed in your system, you can very easily build the debug version of the program.
+
+```shell
+make configure # Runs CMake configure step
+make build # Builds the server and client using CMake
+```
+
+You can also build server and client separately with `make`, using make target `build_server` and `build_client` respectively.
+
+To build a release version, you would need to run the CMake configure step with build type `Release`.
+
+## Running
+
+If you built the program using `make` or CMake commands targeting the same build directory, you can run the program like so;
+
+```shell
+./build/server/attokv_server # Run the server
+./build/client/attokv_client # Run the client
+```
+
+The server will listen on `127.0.0.1:6337` and the client will attempt to connect to the same address. I plan to make this configurable (with program arguments).
+
 ## Binary Protocol
 
 4-byte header which just contains the message size, then the message which is a string.
@@ -41,3 +65,7 @@ The `del` command may re-allocate the entire string arena if there is lots of fr
 `get` should be O(1) unless the KV map capacity is not very large, which would cause hash collisions (and thus, more string comparisons).
 
 For now, we only handle 1 client at a time, until I implement polling or something along those lines.
+
+## OS compatibility
+
+AttoKV only supports Linux, for now, as I am only using Unix syscalls. It might work on MacOS, I haven't tested it.
