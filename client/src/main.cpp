@@ -8,7 +8,7 @@ int main() {
     std::string line{};
     Client client{};
 
-    auto conn_result = client.connect("127.0.0.1", 6338);
+    auto conn_result = client.connect("127.0.0.1", 6337);
     if (!conn_result.has_value()) {
         std::cerr << "Failed to connect: " << conn_result.error() << '\n';
         return 1;

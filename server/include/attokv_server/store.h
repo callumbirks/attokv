@@ -1,8 +1,9 @@
 #ifndef ATTOKV_SERVER_STORE_H
 #define ATTOKV_SERVER_STORE_H
 
+#include "attokv_server/map.h"
 #include <string>
-#include <unordered_map>
+#include <string_view>
 
 namespace attokv {
 
@@ -10,14 +11,14 @@ class KVStore {
 public:
     KVStore();
 
-    std::string_view get(const std::string& key);
+    std::string_view get(std::string_view key);
 
-    void set(const std::string& key, const std::string& val);
+    void set(std::string key, std::string value);
 
     void flush();
 
 private:
-    std::unordered_map<std::string, std::string> m_map{};
+    FastMap m_map{};
 };
 
 } // namespace attokv
