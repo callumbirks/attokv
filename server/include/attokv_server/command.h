@@ -35,9 +35,10 @@ CommandResult _builtin_exit(CommandContext context);
 CommandResult _builtin_ping(CommandContext context);
 CommandResult _builtin_get(CommandContext context);
 CommandResult _builtin_set(CommandContext context);
+CommandResult _builtin_del(CommandContext context);
 CommandResult _builtin_flush(CommandContext context);
 
-const std::array<CommandSpec, 5>& builtin();
+const std::array<CommandSpec, 6>& builtin();
 } // namespace command
 } // namespace attokv
 

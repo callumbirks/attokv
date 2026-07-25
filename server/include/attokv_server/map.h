@@ -37,6 +37,8 @@ public:
 
     void set(std::string_view key, std::string_view value);
 
+    bool remove(std::string_view key);
+
     void clear();
 
 private:

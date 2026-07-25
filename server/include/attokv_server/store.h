@@ -2,7 +2,6 @@
 #define ATTOKV_SERVER_STORE_H
 
 #include "attokv_server/map.h"
-#include <string>
 #include <string_view>
 
 namespace attokv {
@@ -13,7 +12,9 @@ public:
 
     std::string_view get(std::string_view key);
 
-    void set(std::string key, std::string value);
+    void set(std::string_view key, std::string_view value);
+
+    bool remove(std::string_view key);
 
     void flush();
 

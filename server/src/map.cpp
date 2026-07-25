@@ -87,6 +87,29 @@ void FastMap::set(std::string_view key, std::string_view value) {
     entry->value = m_arena.store(value);
 }
 
+bool FastMap::remove(std::string_view key) {
+    Entry* entry = get_entry<SlotMatch::match>(m_table, m_capacity, key);
+    if (!entry)
+        return false;
+    m_arena.remove(entry->key);
+    m_arena.remove(entry->value);
+    std::memset(entry, 0, sizeof(Entry));
+
+    if (m_arena.should_reallocate()) {
+        StringArena new_arena{k_arena_block_size};
+        for (size_t i = 0; i < m_capacity; i++) {
+            Entry* e = &m_table[i];
+            if (e->empty())
+                continue;
+            e->key = new_arena.store(e->key);
+            e->value = new_arena.store(e->value);
+        }
+        m_arena = std::move(new_arena);
+    }
+
+    return true;
+}
+
 void FastMap::clear() {
     std::memset((void*)m_table.get(), 0, m_capacity);
     m_arena = StringArena{k_arena_block_size};
