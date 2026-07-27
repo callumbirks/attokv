@@ -1,5 +1,8 @@
 #include "attokv/socket.h"
 
+#include <cerrno>
+#include <fcntl.h>
+#include <system_error>
 #include <unistd.h>
 #include <utility>
 
@@ -23,6 +26,18 @@ bool Socket::is_valid() const noexcept {
 
 int Socket::native_handle() const noexcept {
     return m_fd;
+}
+
+std::expected<void, std::error_code> Socket::set_nonblocking(bool enabled) const noexcept {
+    const int flags = ::fcntl(m_fd, F_GETFL);
+    if (flags == -1)
+        return std::unexpected{std::error_code{errno, std::generic_category()}};
+
+    const int updated_flags = enabled ? flags | O_NONBLOCK : flags & ~O_NONBLOCK;
+    if (::fcntl(m_fd, F_SETFL, updated_flags) == -1)
+        return std::unexpected{std::error_code{errno, std::generic_category()}};
+
+    return {};
 }
 
 void Socket::reset(int fd) noexcept {

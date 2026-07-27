@@ -1,6 +1,9 @@
 #ifndef ATTOKV_SOCKET_H
 #define ATTOKV_SOCKET_H
 
+#include <expected>
+#include <system_error>
+
 namespace attokv {
 
 class Socket {
@@ -20,6 +23,8 @@ public:
     bool is_valid() const noexcept;
     [[nodiscard]]
     int native_handle() const noexcept;
+
+    std::expected<void, std::error_code> set_nonblocking(bool enabled = true) const noexcept;
 
     void reset(int fd = -1) noexcept;
     [[nodiscard]]

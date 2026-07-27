@@ -64,7 +64,7 @@ The `del` command may re-allocate the entire string arena if there is lots of fr
 
 `get` should be O(1) unless the KV map capacity is not very large, which would cause hash collisions (and thus, more string comparisons).
 
-For now, we only handle 1 client at a time, until I implement polling or something along those lines.
+AttoKV supports simultaneous clients through the use of non-blocking sockets and polling.
 
 ## OS compatibility
 
