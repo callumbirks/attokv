@@ -49,6 +49,9 @@ public:
         return store(std::as_bytes(std::span<const char>{string.data(), string.size()}));
     }
 
+    /// precondition: string.size <= ref.size
+    StringRef overwrite(StringRef ref, std::string_view string);
+
     StringRef store(std::span<const std::byte> bytes);
 
     std::string_view view(StringRef ref) const;

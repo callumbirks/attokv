@@ -6,6 +6,7 @@
 #include <cstring>
 #include <memory>
 #include <span>
+#include <string_view>
 #include <vector>
 
 using namespace attokv;
@@ -38,6 +39,23 @@ StringArena::StringRef StringArena::store(std::span<const std::byte> bytes) {
         static_cast<uint32_t>(m_blocks.size() - 1), static_cast<uint32_t>(offset),
         static_cast<uint32_t>(size)
     };
+}
+
+StringArena::StringRef StringArena::overwrite(StringRef ref, std::string_view string) {
+    assert(string.size() <= ref.size);
+    if (ref.empty())
+        return {};
+    if (ref.block >= m_blocks.size())
+        return {};
+    const Block& block = m_blocks[ref.block];
+    if (ref.offset + ref.size > block.back)
+        return {};
+    std::memcpy(block.data.get() + ref.offset, string.data(), string.size());
+    size_t difference = string.size() - ref.size;
+    if (difference > 0) {
+        std::memset(block.data.get() + ref.offset + string.size(), 0, difference);
+    }
+    return {.block = ref.block, .offset = ref.offset, .size = static_cast<uint32_t>(string.size())};
 }
 
 bool StringArena::remove(StringArena::StringRef string) {

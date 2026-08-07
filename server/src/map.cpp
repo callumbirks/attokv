@@ -108,7 +108,13 @@ void FastMap::set(std::string_view key, std::string_view value) {
         entry->key = m_arena.store(key);
         m_size++;
     }
-    entry->value = m_arena.store(value);
+    StringArena::StringRef ref;
+    if (value.size() <= entry->value.size) {
+        ref = m_arena.overwrite(entry->value, value);
+    } else {
+        ref = m_arena.store(value);
+    }
+    entry->value = ref;
 }
 
 bool FastMap::remove(std::string_view key) {
