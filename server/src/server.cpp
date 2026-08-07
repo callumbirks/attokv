@@ -75,7 +75,7 @@ void Server::run() {
             descriptors.push_back({
                 .fd = client.socket.native_handle(),
                 .events =
-                    static_cast<short>(client.writer.has_pending_message() ? POLLOUT : POLLIN),
+                      static_cast<short>(client.writer.has_pending_message() ? POLLOUT : POLLIN),
                 .revents = 0,
             });
         }
@@ -128,6 +128,13 @@ void Server::accept_clients() {
         if (!nonblocking_result) {
             std::cerr << "Failed to make client socket nonblocking: "
                       << nonblocking_result.error().message() << '\n';
+            continue;
+        }
+
+        auto nodelay_result = client_socket.set_nodelay();
+        if (!nodelay_result) {
+            std::cerr << "Failed to configure client socket: " << nodelay_result.error().message()
+                      << '\n';
             continue;
         }
 

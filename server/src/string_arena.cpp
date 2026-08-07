@@ -10,16 +10,25 @@
 
 using namespace attokv;
 
+size_t StringArena::CompactedLayout::size() const noexcept {
+    return m_size;
+}
+
+uint32_t StringArena::CompactedLayout::offset_of(StringRef ref) const {
+    assert(ref.block < m_block_offsets.size());
+    return m_block_offsets[ref.block] + ref.offset;
+}
+
 StringArena::StringRef StringArena::store(std::span<const std::byte> bytes) {
     if (bytes.empty())
         return {};
     if (m_blocks.empty() || current_block().remaining() < bytes.size()) {
-        allocate_block();
+        allocate_block(std::max(m_block_size, bytes.size()));
     }
     Block& block = current_block();
 
     size_t offset = block.back;
-    size_t size = std::min(bytes.size(), m_block_size);
+    size_t size = bytes.size();
 
     std::memcpy(block.data.get() + offset, bytes.data(), size);
 
@@ -37,7 +46,7 @@ bool StringArena::remove(StringArena::StringRef string) {
 
     Block& block = m_blocks[string.block];
 
-    if (string.offset >= block.back || string.offset + string.size >= block.capacity) {
+    if (string.offset >= block.back || string.size > block.back - string.offset) {
         return false;
     }
 
@@ -49,7 +58,10 @@ bool StringArena::remove(StringArena::StringRef string) {
 }
 
 bool StringArena::should_reallocate() const {
-    return m_blocks.size() * m_block_size <= m_dead * 2;
+    size_t capacity{};
+    for (const Block& block : m_blocks)
+        capacity += block.capacity;
+    return capacity <= m_dead * 2;
 }
 
 size_t StringArena::used_size() const {
@@ -61,11 +73,11 @@ size_t StringArena::used_size() const {
 }
 
 StringArena::CompactedLayout StringArena::compact_into(std::span<std::byte> dest) {
+    [[maybe_unused]]
     size_t capacity = used_size();
     assert(dest.size() == capacity);
 
-    std::vector<uint32_t> block_offsets{};
-    block_offsets.reserve(m_blocks.size());
+    std::vector<uint32_t> block_offsets(m_blocks.size());
     {
         size_t processed{0};
         for (size_t i = 0; i < m_blocks.size(); i++) {

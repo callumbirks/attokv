@@ -25,6 +25,7 @@ public:
     int native_handle() const noexcept;
 
     std::expected<void, std::error_code> set_nonblocking(bool enabled = true) const noexcept;
+    std::expected<void, std::error_code> set_nodelay(bool enabled = true) const noexcept;
 
     void reset(int fd = -1) noexcept;
     [[nodiscard]]

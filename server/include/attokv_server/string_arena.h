@@ -42,7 +42,7 @@ public:
     };
 
     explicit StringArena(size_t block_size = 64 * 1024) : m_block_size{block_size}, m_blocks{} {
-        allocate_block();
+        allocate_block(block_size);
     }
 
     StringRef store(std::string_view string) {
@@ -89,8 +89,8 @@ private:
         return m_blocks.back();
     }
 
-    void allocate_block() {
-        m_blocks.emplace_back(m_block_size);
+    void allocate_block(size_t capacity) {
+        m_blocks.emplace_back(capacity);
     }
 
     size_t m_block_size;

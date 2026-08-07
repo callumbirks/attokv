@@ -4,6 +4,7 @@
 #include "attokv_server/string_arena.h"
 #include <bitset>
 #include <memory>
+#include <optional>
 #include <string_view>
 
 namespace attokv {
@@ -49,7 +50,7 @@ public:
         : m_capacity{capacity}, m_arena{k_arena_block_size},
           m_table{std::make_unique<attokv::fastmap::Entry[]>(capacity)} {}
 
-    std::string_view get(std::string_view key) const;
+    std::optional<std::string_view> get(std::string_view key) const;
 
     void set(std::string_view key, std::string_view value);
 

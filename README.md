@@ -15,7 +15,12 @@ make build # Builds the server and client using CMake
 
 You can also build server and client separately with `make`, using make target `build_server` and `build_client` respectively.
 
-To build a release version, you would need to run the CMake configure step with build type `Release`.
+Benchmarks should always use a Release build:
+
+```shell
+make configure_release
+make build_release
+```
 
 ## Running
 
@@ -26,7 +31,8 @@ If you built the program using `make` or CMake commands targeting the same build
 ./build/client/attokv_client # Run the client
 ```
 
-The server will listen on `127.0.0.1:6337` and the client will attempt to connect to the same address. I plan to make this configurable (with program arguments).
+The server listens on `127.0.0.1:6337` by default and the client connects to the same endpoint.
+Both accept `--host` and `--port` options; use `--help` to see their complete usage.
 
 ## Binary Protocol
 
@@ -48,9 +54,50 @@ The commands are inspired by Redis, we only have a few;
 | `flush`     | —             | `OK`             | —                      |
 | `exit`      | —             | close connection | —                      |
 
-## Performance
+## Benchmarking
 
-Haven't got round to benchmarks yet, but the KV map uses a pre-allocated array for entry (kv pairs) storage,
+The `attokv_benchmark` executable can run the same deterministic workload against AttoKV or
+Redis. It uses persistent connections with one outstanding request per connection and reports
+throughput together with p50, p95, p99, and maximum latency.
+
+Start AttoKV and run a mixed workload:
+
+```shell
+./build-release/server/attokv_server
+./build-release/benchmark/attokv_benchmark \
+    --backend attokv --workload mixed --clients 16 --requests 1000000
+```
+
+For a comparable Redis run, start Redis without persistence and change only the backend endpoint:
+
+```shell
+redis-server --save "" --appendonly no
+./build-release/benchmark/attokv_benchmark \
+    --backend redis --port 6379 --workload mixed --clients 16 --requests 1000000
+```
+
+Available workloads are `ping`, `set`, `get-hit`, `get-miss`, `del-hit`, and `mixed`. Run
+`attokv_benchmark --help` for workload controls, keyspace and value sizes, warmup requests, and
+the deterministic seed. Servers are intentionally managed outside the harness.
+
+## Benchmark results
+
+As of my last run, Redis is about 50% faster than AttoKV.
+
+These runs use;
+
+- Both backend and benchmark running on my own machine (AMD Ryzen 5800X).
+- Redis 7.4 running in Docker.
+- Mixed workload preset (`--workload mixed`).
+
+| Backend | # requests | # clients | Throughput   | p50   | p95   | p99   |
+| ------- | ---------- | --------- | ------------ | ----- | ----- | ----- |
+| attokv  | 100000     | 16        | 61013 ops/s  | 234us | 364us | 465us |
+| Redis   | 100000     | 16        | 101134 ops/s | 151us | 221us | 308us |
+
+## Performance notes
+
+The KV map uses a pre-allocated array for entry (kv pairs) storage,
 and a custom arena for strings which allocates in blocks to avoid invalidating pointers in the entries.
 
 Performance generally should be good, because most operations won't need to allocate.

@@ -1,23 +1,21 @@
 #include "attokv_server/command.h"
-#include <cassert>
-#include <string_view>
 
 using namespace attokv;
 
-CommandResult command::_builtin_exit(CommandContext _) {
+CommandResult command::_builtin_exit(CommandContext) {
     return {.stop = true};
 }
 
-CommandResult command::_builtin_ping(CommandContext _) {
+CommandResult command::_builtin_ping(CommandContext) {
     return {.output = "pong"};
 }
 
 CommandResult command::_builtin_get(CommandContext context) {
-    std::string_view val{context.store->get(context.args[0])};
-    if (val.empty())
+    auto val = context.store->get(context.args[0]);
+    if (!val)
         return {.output = "NULL"};
     else
-        return {.output = std::string{val}};
+        return {.output = std::string{*val}};
 }
 
 CommandResult command::_builtin_set(CommandContext context) {

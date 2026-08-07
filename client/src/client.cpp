@@ -29,6 +29,12 @@ std::expected<void, std::string> Client::connect(const std::string& address, int
         return std::unexpected{std::format("Failed to connect: {}", std::strerror(errno))};
     }
 
+    auto nodelay_result = socket.set_nodelay();
+    if (!nodelay_result) {
+        return std::unexpected{std::format("Failed to configure socket: {}",
+                                           nodelay_result.error().message())};
+    }
+
     m_socket = std::move(socket);
     return {};
 }

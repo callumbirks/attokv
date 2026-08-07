@@ -2,6 +2,9 @@
 
 #include <cerrno>
 #include <fcntl.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/socket.h>
 #include <system_error>
 #include <unistd.h>
 #include <utility>
@@ -37,6 +40,13 @@ std::expected<void, std::error_code> Socket::set_nonblocking(bool enabled) const
     if (::fcntl(m_fd, F_SETFL, updated_flags) == -1)
         return std::unexpected{std::error_code{errno, std::generic_category()}};
 
+    return {};
+}
+
+std::expected<void, std::error_code> Socket::set_nodelay(bool enabled) const noexcept {
+    int value = enabled ? 1 : 0;
+    if (::setsockopt(m_fd, IPPROTO_TCP, TCP_NODELAY, &value, sizeof(value)) == -1)
+        return std::unexpected{std::error_code{errno, std::generic_category()}};
     return {};
 }
 
