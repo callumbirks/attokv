@@ -1,6 +1,7 @@
 #include "attokv_server/executor.h"
 #include "attokv_server/command.h"
 #include "attokv_server/store.h"
+#include <cassert>
 #include <format>
 #include <optional>
 #include <sstream>
@@ -8,6 +9,9 @@
 #include <string_view>
 
 using namespace attokv;
+
+// Should be kept in line with whatever the highest max arg count is out of all commands.
+constexpr size_t k_max_command_args = 2;
 
 std::unordered_map<std::string_view, CommandSpec>& commands() {
     static std::unordered_map<std::string_view, CommandSpec> map{};
@@ -20,64 +24,106 @@ KVStore& store() {
     return store;
 }
 
-std::optional<CommandSpec> getCommandSpec(const std::string& oper_str) {
+const CommandSpec* get_command_spec(std::string_view operation) {
     auto& commands = ::commands();
-    auto oper = commands.find(oper_str);
+    auto oper = commands.find(operation);
     if (oper == commands.end())
-        return std::nullopt;
-    return oper->second;
+        return nullptr;
+    return &oper->second;
+}
+
+constexpr bool is_whitespace(char character) {
+    switch (character) {
+    case ' ':
+    case '\t':
+    case '\n':
+    case '\r':
+    case '\f':
+    case '\v':
+        return true;
+    default:
+        return false;
+    }
+}
+
+std::string_view next_token(std::string_view input, std::size_t& position) {
+    while (position < input.size() && is_whitespace(input[position])) {
+        ++position;
+    }
+
+    const size_t begin = position;
+
+    while (position < input.size() && !is_whitespace(input[position])) {
+        ++position;
+    }
+
+    return input.substr(begin, position - begin);
 }
 
 struct ParseResult {
-    std::optional<CommandSpec> command{};
-    std::vector<std::string> args{};
+    const CommandSpec* command{};
+    std::array<std::string_view, k_max_command_args> args{};
+    size_t arg_count{};
     std::string error{};
 };
 
-ParseResult parseCommand(const std::string& line) {
-    std::istringstream input{line};
+ParseResult parseCommand(std::string_view input) {
 
-    std::string oper_str{};
-    if (!(input >> oper_str)) {
+    size_t position{};
+
+    const std::string_view operation = next_token(input, position);
+
+    if (operation.empty())
         return {.error = "Empty input"};
+
+    const CommandSpec* command = get_command_spec(operation);
+
+    if (!command) {
+        return {.error = std::format("No such command '{}'", operation)};
     }
 
-    std::optional<CommandSpec> command{getCommandSpec(oper_str)};
-    if (!command)
-        return {.error = std::format("No such command '{}'", oper_str)};
+    assert(command->required_args >= 0);
+    assert(static_cast<size_t>(command->required_args) <= k_max_command_args);
 
-    std::vector<std::string> args;
-    args.reserve(command->required_args);
-    std::string arg{};
+    ParseResult result{.command = command};
 
-    for (int i = 0; input >> arg; i++) {
-        if (i == command->required_args) {
-            return {.error = std::format("Invalid number of args for command '{}'", oper_str)};
+    while (true) {
+        const std::string_view argument = next_token(input, position);
+
+        if (argument.empty())
+            break;
+
+        if (result.arg_count == result.args.size()) {
+            return {.error = std::format("Invalid number of args for command '{}'", operation)};
         }
-        args.push_back(arg);
+
+        result.args[result.arg_count++] = argument;
     }
 
-    if (command->required_args > -1 && static_cast<int>(args.size()) != command->required_args) {
-        return {.error = std::format("Invalid number of args for command '{}'", oper_str)};
+    if (result.arg_count != static_cast<size_t>(command->required_args)) {
+        return {.error = std::format("Invalid number of args for command '{}'", operation)};
     }
 
-    return {.command = command, .args = args};
+    return result;
 }
 
-CommandResult executor::run_command(const std::string& input) {
-    ParseResult command{parseCommand(input)};
+CommandResult executor::run_command(std::string_view input) {
+    ParseResult parsed = parseCommand(input);
 
-    if (!command.command) {
-        return {.error = true, .output = command.error};
+    if (!parsed.command) {
+        return {.error = true, .output = std::move(parsed.error)};
     }
 
-    CommandContext context{&store(), static_cast<int>(command.args.size()), command.args.data()};
+    CommandContext context{.store = &store(), .args = {parsed.args.data(), parsed.arg_count}};
 
-    return command.command->run(context);
+    return parsed.command->run(context);
 }
 
 void executor::register_builtins() {
     auto& commands = ::commands();
+
+    commands.reserve(command::builtin().size());
+
     for (const auto& spec : command::builtin()) {
         commands.emplace(spec.name, spec);
     }

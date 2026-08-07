@@ -92,7 +92,7 @@ These runs use;
 
 | Backend | # requests | # clients | Throughput   | p50   | p95   | p99   |
 | ------- | ---------- | --------- | ------------ | ----- | ----- | ----- |
-| attokv  | 100000     | 16        | 61013 ops/s  | 234us | 364us | 465us |
+| attokv  | 100000     | 16        | 63500 ops/s  | 226us | 350us | 408us |
 | Redis   | 100000     | 16        | 101134 ops/s | 151us | 221us | 308us |
 
 ## Performance notes

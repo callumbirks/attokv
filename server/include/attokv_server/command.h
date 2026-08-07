@@ -4,7 +4,9 @@
 #include "attokv_server/store.h"
 #include <array>
 #include <functional>
+#include <span>
 #include <string>
+#include <string_view>
 
 namespace attokv {
 
@@ -16,8 +18,7 @@ struct CommandResult {
 
 struct CommandContext {
     KVStore* store;
-    int n_args;
-    const std::string* args;
+    std::span<const std::string_view> args;
 };
 
 struct CommandSpec {

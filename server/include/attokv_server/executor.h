@@ -5,7 +5,7 @@
 
 namespace attokv::executor {
 void register_builtins();
-CommandResult run_command(const std::string& input);
+CommandResult run_command(std::string_view input);
 } // namespace attokv::executor
 
 #endif
