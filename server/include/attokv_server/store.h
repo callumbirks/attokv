@@ -10,7 +10,7 @@ class KVStore {
 public:
     KVStore();
 
-    std::string_view get(std::string_view key);
+    std::string_view get(std::string_view key) const;
 
     void set(std::string_view key, std::string_view value);
 

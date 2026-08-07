@@ -5,7 +5,7 @@ using namespace attokv;
 
 KVStore::KVStore() {}
 
-std::string_view KVStore::get(std::string_view key) {
+std::string_view KVStore::get(std::string_view key) const {
     return m_map.get(key);
 }
 

@@ -1,9 +1,11 @@
-#ifndef ATTOKV_SERVER_STRING_ARENA_H
-#define ATTOKV_SERVER_STRING_ARENA_H
+#ifndef ATTOKV_STRING_ARENA_H
+#define ATTOKV_STRING_ARENA_H
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -12,17 +14,31 @@ namespace attokv {
 class StringArena {
 public:
     struct StringRef {
-        const char* data;
         uint32_t block;
+        uint32_t offset;
         uint32_t size;
 
-        bool empty() {
+        bool empty() const {
             return size == 0;
         }
+    };
 
-        operator std::string_view() {
-            return {data, static_cast<size_t>(size)};
-        }
+    class CompactedLayout {
+    public:
+        CompactedLayout(std::vector<uint32_t> block_offsets, size_t size)
+            : m_block_offsets{block_offsets}, m_size{size} {}
+
+        size_t size() const noexcept;
+
+        /// Given `ref` is a reference to a StringRef which existed in the arena before calling
+        /// compact_into(), returns the new offset of the string into the new compacted bytes.
+        uint32_t offset_of(StringRef ref) const;
+
+    private:
+        friend class StringArena;
+
+        std::vector<uint32_t> m_block_offsets;
+        size_t m_size{};
     };
 
     explicit StringArena(size_t block_size = 64 * 1024) : m_block_size{block_size}, m_blocks{} {
@@ -30,57 +46,41 @@ public:
     }
 
     StringRef store(std::string_view string) {
-        if (string.empty())
-            return {};
-        if (m_blocks.empty() || current_block().remaining() < string.size()) {
-            allocate_block();
-        }
-        Block& block = current_block();
-        char* start = block.data.get() + block.back;
-        std::memcpy(start, string.data(), string.size());
-        block.back += string.size();
-        return {
-            start, static_cast<uint32_t>(m_blocks.size() - 1), static_cast<uint32_t>(string.size())
-        };
+        return store(std::as_bytes(std::span<const char>{string.data(), string.size()}));
     }
+
+    StringRef store(std::span<const std::byte> bytes);
+
+    std::string_view view(StringRef ref) const;
 
     /// Remove a string from the arena.
     /// Returns false if the string is not part of the arena.
     /// If this function returns true, the caller should call `should_reallocate`.
-    bool remove(StringRef string) {
-        if (string.block >= m_blocks.size())
-            return false;
-
-        Block& block = m_blocks[string.block];
-
-        if (string.data < block.data.get() || string.data >= block.data.get() + block.capacity) {
-            return false;
-        }
-
-        std::memset(const_cast<char*>(string.data), 0, string.size);
-
-        block.dead += string.size;
-        m_dead += string.size;
-        return true;
-    }
+    bool remove(StringRef string);
 
     /// Should be called after `remove`.
     /// If returns true, allocate a new arena and move all active strings to it.
-    bool should_reallocate() {
-        return m_blocks.size() * m_block_size <= m_dead * 2;
-    }
+    bool should_reallocate() const;
+
+    /// Return the number of bytes used for strings.
+    /// This is useful for `compact_into`.
+    size_t used_size() const;
+
+    /// Copy all string bytes into `dest`. Invariant: `dest.size() >= used_size()`.
+    /// Use the returned `CompactedLayout` to map StringRef offsets into the new compacted block.
+    CompactedLayout compact_into(std::span<std::byte> dest);
 
 private:
     struct Block {
-        std::unique_ptr<char[]> data;
+        std::unique_ptr<std::byte[]> data;
         size_t capacity;
         size_t back{0};
         size_t dead{0};
 
         explicit Block(size_t capacity)
-            : data{std::make_unique<char[]>(capacity)}, capacity{capacity} {}
+            : data{std::make_unique<std::byte[]>(capacity)}, capacity{capacity} {}
 
-        size_t remaining() {
+        size_t remaining() const {
             return capacity - back;
         }
     };

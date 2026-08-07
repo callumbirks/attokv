@@ -34,16 +34,18 @@ enum class SlotMatch {
 };
 
 template <SlotMatch SLOT_MATCH>
-Entry* get_entry(std::unique_ptr<Entry[]>& table, size_t capacity, std::string_view key) {
-    size_t slot = get_slot(key, capacity);
-    while (!table[slot].empty()) {
+Entry* get_entry(const std::unique_ptr<Entry[]>& table, size_t capacity, const StringArena& arena,
+                 std::string_view key) {
+    uint64_t hash = fnv_1a(key);
+    size_t slot = hash % capacity;
+    while (!table[slot].empty() || table[slot].deleted()) {
         if constexpr (SLOT_MATCH == SlotMatch::match || SLOT_MATCH == SlotMatch::match_or_empty) {
             Entry& entry = table[slot];
-            if (entry.key == key) {
+            if (arena.view(entry.key) == key) {
                 return &entry;
             }
         }
-        slot += 1;
+        slot = (slot + 1) % capacity;
     }
     if constexpr (SLOT_MATCH == SlotMatch::empty || SLOT_MATCH == SlotMatch::match_or_empty) {
         return &table[slot];
@@ -52,35 +54,39 @@ Entry* get_entry(std::unique_ptr<Entry[]>& table, size_t capacity, std::string_v
 }
 
 std::unique_ptr<Entry[]> resize(std::unique_ptr<Entry[]>& table, size_t old_capacity,
-                                size_t new_capacity) {
+                                const StringArena& arena, size_t new_capacity) {
     std::unique_ptr<Entry[]> new_table = std::make_unique<Entry[]>(new_capacity);
     // Rehash all entries into the new table
     for (size_t i = 0; i < old_capacity; i++) {
         if (!table[i].empty()) {
             // There should be no matches, so unlike set(), we only look for empty slots
-            Entry* new_entry = get_entry<SlotMatch::empty>(new_table, new_capacity, table[i].key);
-            new_entry->key = std::move(table[i].key);
-            new_entry->value = std::move(table[i].value);
+            Entry* new_entry = get_entry<SlotMatch::empty>(new_table, new_capacity, arena,
+                                                           arena.view(table[i].key));
+            new_entry->key = table[i].key;
+            new_entry->value = table[i].value;
         }
     }
     return new_table;
 }
 
-std::string_view FastMap::get(std::string_view key) {
-    Entry* entry = get_entry<SlotMatch::match>(m_table, m_capacity, key);
+std::string_view FastMap::get(std::string_view key) const {
+    Entry* entry = get_entry<SlotMatch::match>(m_table, m_capacity, m_arena, key);
     if (!entry)
         return {};
-    return entry->value;
+    if (entry->empty())
+        return {};
+    return m_arena.view(entry->value);
 }
 
 void FastMap::set(std::string_view key, std::string_view value) {
-    Entry* entry = get_entry<SlotMatch::match_or_empty>(m_table, m_capacity, key);
+    Entry* entry = get_entry<SlotMatch::match_or_empty>(m_table, m_capacity, m_arena, key);
     if (entry->empty()) {
         if (m_size >= m_capacity * k_load_factor) {
-            m_table = resize(m_table, m_capacity, m_capacity * 2);
+            m_table = resize(m_table, m_capacity, m_arena, m_capacity * 2);
             m_capacity *= 2;
-            entry = get_entry<SlotMatch::match_or_empty>(m_table, m_capacity, key);
+            entry = get_entry<SlotMatch::match_or_empty>(m_table, m_capacity, m_arena, key);
         }
+        entry->unmark_deleted();
         entry->key = m_arena.store(key);
         m_size++;
     }
@@ -88,12 +94,14 @@ void FastMap::set(std::string_view key, std::string_view value) {
 }
 
 bool FastMap::remove(std::string_view key) {
-    Entry* entry = get_entry<SlotMatch::match>(m_table, m_capacity, key);
+    Entry* entry = get_entry<SlotMatch::match>(m_table, m_capacity, m_arena, key);
     if (!entry)
         return false;
     m_arena.remove(entry->key);
     m_arena.remove(entry->value);
     std::memset(entry, 0, sizeof(Entry));
+    entry->mark_deleted();
+    m_size--;
 
     if (m_arena.should_reallocate()) {
         StringArena new_arena{k_arena_block_size};
@@ -101,8 +109,8 @@ bool FastMap::remove(std::string_view key) {
             Entry* e = &m_table[i];
             if (e->empty())
                 continue;
-            e->key = new_arena.store(e->key);
-            e->value = new_arena.store(e->value);
+            e->key = new_arena.store(m_arena.view(e->key));
+            e->value = new_arena.store(m_arena.view(e->value));
         }
         m_arena = std::move(new_arena);
     }
@@ -111,6 +119,7 @@ bool FastMap::remove(std::string_view key) {
 }
 
 void FastMap::clear() {
-    std::memset((void*)m_table.get(), 0, m_capacity);
+    std::memset((void*)m_table.get(), 0, m_capacity * sizeof(Entry));
     m_arena = StringArena{k_arena_block_size};
+    m_size = 0;
 }
